@@ -30,7 +30,6 @@ export default {
 
   data() {
     return {
-      interval: null,
       serverMessageTypes: {
         drive: true,
         stop: true,
@@ -49,8 +48,6 @@ export default {
     endDrive() {
       this.$socket.emit('endDrive')
 
-      clearInterval(this.interval)
-
       setTimeout(() => {
         this.$socket.emit("userLeft", {user: this.user.id}, () => {
           this.$router.push("/");
@@ -60,20 +57,7 @@ export default {
 
     changeStatusDrive(status) {
       this.$socket.emit(status)
-      clearInterval(this.interval)
-
-      this.$socket.emit("getTime", {type: status})
-      this.interval = setInterval(() => {
-        this.$socket.emit("getTime", {type: status})
-      }, 1000)
     }
-  },
-
-  mounted() {
-    this.$socket.emit("getTime", {type: 'drive'})
-    this.interval = setInterval(() => {
-      this.$socket.emit("getTime", {type: 'drive'})
-    }, 1000)
   }
 };
 </script>
