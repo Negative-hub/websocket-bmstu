@@ -5,6 +5,8 @@ class Users {
 
   add(user) {
     this.users.push(user)
+
+    return user
   }
 
   get(id) {

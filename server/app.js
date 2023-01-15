@@ -2,19 +2,9 @@ const app = require('express')()
 const server = require('http').createServer(app)
 const io = require('socket.io')(server)
 const users = require('./users')()
+const cars = require('./cars')()
 
-const m = (type, text, user, id) => ({type, text, user, id})
-const getDrivingTime = (socket, type) => {
-  const user = users.get(socket.id)
-
-  const sub = type === 'drive' ? user.timeBeginStopping : user.timeBeginDriving
-  const delta = Date.now() - user.timestamp - sub
-
-  const seconds = Math.floor(delta / 1000 % 60)
-  const minutes = Math.floor(delta / 1000 / 60)
-
-  return `${type === 'drive' ? 'Ваша поездка длится' : 'Ваша стоянка длится'} ${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`
-}
+const m = (id, user, type, text) => ({id, user, type, text})
 
 io.on('connection', socket => {
   socket.on('userJoined', (data, cb) => {
@@ -32,47 +22,91 @@ io.on('connection', socket => {
       car: data.car
     })
 
-    users.add({
+    const user = users.add({
       id: socket.id,
       name: data.name,
       car: data.car,
-      timeBetweenActions: Date.now(),
       timestamp: Date.now() - 1,
-      timeBeginDriving: 0,
-      timeBeginStopping: 0
     })
 
     cb({userId: socket.id, name: data.name})
 
     console.log(`received: ${m('message', `Добро пожаловать ${data.name}. Ваша поездка на машине ${data.car} началась`, users.get(socket.id), Date.now())}`)
-    socket.emit('newMessage', m('message', `Добро пожаловать ${data.name}. Ваша поездка на машине ${data.car} началась`, users.get(socket.id), Date.now()))
+
+    if (cars.get(data.car)) {
+      socket.broadcast.emit('newMessageCar',
+        m(
+          Date.now(),
+          user,
+          'message',
+          `Пользователь ${user.name} начал движение на машине ${user.car} в ${new Date(user.timestamp).toLocaleString()}`,
+        )
+      )
+    }
+
+    socket.emit('newMessage',
+      m(
+        Date.now(),
+        users.get(socket.id),
+        'message',
+        `Добро пожаловать ${data.name}. Ваша поездка на машине ${data.car} началась`,
+      )
+    )
+  })
+
+  socket.on('carJoined', (data, cb) => {
+    const user = users.getByCar(data.car)
+
+    if (!user) {
+      cb(`Машина ${data.car} еще не используется!`)
+      return
+    }
+
+    cars.add({id: socket.id, car: data.car})
+    cb({id: socket.id, car: data.car})
+
+    socket.emit('newMessageCar',
+      m(
+        Date.now(),
+        users.getByCar(data.car),
+        'message',
+        `Пользователь ${user.name} начал движение на машине ${data.car} в ${new Date(user.timestamp).toLocaleString()}`,
+      )
+    )
   })
 
   socket.on('drive', () => {
     const user = users.get(socket.id)
-    user.timeBeginStopping = Date.now() - user.timestamp - user.timeBeginDriving
 
     console.log(`received: ${JSON.stringify(m('message', `Вы сняли машину с ожидания`,
       user,
       Date.now()))}`)
+
+    socket.broadcast.emit('newMessageCar',
+      m(
+        Date.now(),
+        user,
+        'message',
+        `Пользователь ${user.name} снял машину с ожидания`,
+      ))
+
     socket.emit('newMessage',
-      m('message', `Вы сняли машину с ожидания`,
-      user,
-      Date.now()
-    ))
+      m(
+        Date.now(),
+        user,
+        'message',
+        `Машина снята с ожидания`,
+      ))
   })
 
-  // 10 0 0 10
-  // 20 10 0 10
-  // 25 10 5 10
-  // 40 25 5 10
   socket.on('stop', () => {
     const user = users.get(socket.id)
-    user.timeBeginDriving = Date.now() - user.timestamp - user.timeBeginStopping
 
-    console.log(`received: ${JSON.stringify(m('message', `Вы поставили машину на ожидание`, user, Date.now()))}`)
+    socket.broadcast.emit('newMessageCar',
+      m(Date.now(), user, 'message', `Пользователь ${user.name} поставил машину на ожидание`))
+
     socket.emit('newMessage',
-      m('message', `Вы поставили машину на ожидание`, user, Date.now()))
+      m(Date.now(), user, 'message', `Вы поставили машину на ожидание`))
   })
 
   socket.on('endDrive', () => {
@@ -81,41 +115,46 @@ io.on('connection', socket => {
     const seconds = Math.floor((Date.now() - user.timestamp) / 1000 % 60)
     const minutes = Math.floor((Date.now() - user.timestamp) / 1000 / 60)
 
-    console.log(`received: ${ m('end',
+    console.log(`received: ${m('end',
       `Вы завершили поездку, ваше общее время ${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`,
       user,
       Date.now()
     )}`)
-    socket.emit('newMessage',
-      m('end',
-        `Вы завершили поездку, ваше общее время ${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`,
-        user,
-        Date.now()
+
+    socket.broadcast.emit('newMessageCar',
+      m(
+        Date.now(),
+        users.get(socket.id),
+        'end',
+        `Пользователь ${user.name} завершил поездку в ${new Date(user.timestamp).toLocaleString()}, его общее время ${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`,
       )
     )
-  })
-
-  socket.on('getTime', (data) => {
-    // console.log(`received: ${JSON.stringify(m(data.type, getDrivingTime(socket, data.type), users.get(socket.id), Date.now()))}`)
     socket.emit('newMessage',
-      m(data.type, getDrivingTime(socket, data.type), users.get(socket.id), Date.now())
+      m(
+        Date.now(),
+        user,
+        'end',
+        `Вы завершили поездку, ваше общее время ${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`,
+      )
     )
   })
 
   socket.on('userLeft', (data, cb) => {
     if (data) {
-      console.log(`disconnect: ${ JSON.stringify(m('dis',
+      console.log(`disconnect: ${JSON.stringify(m('dis',
         `disconnect'}`,
         users.get(socket.id),
         Date.now()
       ))}`)
 
+      users.remove(socket.id)
       cb()
 
       return
     }
 
-    socket.emit('userLeft')
+    io.emit('carLeft')
+    io.emit('userLeft')
   })
 })
 

@@ -3,6 +3,7 @@
     <div class="wrap">
       <div class="mes" :class="{'owner': owner}">
         <p>{{text}}</p>
+        <p class="time">{{new Date(time).toLocaleString()}}</p>
       </div>
     </div>
   </div>
@@ -15,7 +16,8 @@ export default {
     owner: {
       type: Boolean,
       default: false
-    }
+    },
+    time: Number
   }
 };
 </script>
@@ -43,9 +45,16 @@ export default {
   background: #1976d2;
   position: relative;
   margin-bottom: 1rem;
+  display flex
+  flex-direction column
+  gap 10px 0
 
   p {
     margin-bottom: 0;
+  }
+
+  .time {
+    align-self flex-end
   }
 }
 

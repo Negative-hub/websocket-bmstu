@@ -19,6 +19,24 @@
           </v-form>
         </v-card-text>
       </v-card>
+
+      <v-card min-width="400">
+        <v-snackbar v-model="snackbarCar" :timeout="6000" top>
+          {{ message }}
+          <v-btn color="pink" flat @click="snackbarCar = false">Закрыть</v-btn>
+        </v-snackbar>
+
+        <v-card-title>
+          <h1>Подключиться к машине</h1>
+        </v-card-title>
+        <v-card-text>
+          <v-form ref="form" lazy-validation>
+            <v-text-field v-model.number="carId" label="Введите номер машины" required></v-text-field>
+
+            <v-btn color="primary" @click="submitCar">Подключиться</v-btn>
+          </v-form>
+        </v-card-text>
+      </v-card>
     </v-flex>
   </v-layout>
 </template>
@@ -39,13 +57,32 @@ export default {
     return {
       userName: '',
       carName: '',
+      carId: '',
+
       snackbar: false,
+      snackbarCar: false,
       message: ''
     }
   },
 
   methods: {
-    ...mapMutations(["setUser"]),
+    ...mapMutations(["setUser", "setCar"]),
+
+    submitCar() {
+      const car = {car: this.carId}
+
+      this.$socket.emit('carJoined', car, (data) => {
+        if (typeof data === 'string') {
+          this.snackbarCar = true
+          this.message = data
+          return
+        }
+
+        car.id = data.id
+        this.setCar(car)
+        this.$router.push("/car");
+      })
+    },
 
     submit() {
       const user = {name: this.userName, car: this.carName};

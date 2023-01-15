@@ -5,6 +5,7 @@
         v-for="m in getMessages"
         :key="m.id"
         :text="m.text"
+        :time="m.id"
         :owner="serverMessageTypes[m.type]"
       />
     </div>

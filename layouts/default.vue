@@ -4,7 +4,7 @@
       <v-btn icon @click="exit">
         <v-icon>arrow_back</v-icon>
       </v-btn>
-      <v-toolbar-title>Чат</v-toolbar-title>
+      <v-toolbar-title>{{ chatTitle }}</v-toolbar-title>
     </v-toolbar>
     <v-content>
       <div style="height: 100%">
@@ -17,7 +17,17 @@
 <script>
 import { mapState, mapMutations } from "vuex";
 export default {
-  computed: mapState(["user"]),
+  computed: {
+    ...mapState(["user", "car"]),
+
+    isCarChat() {
+      return this.$route.path.includes('car')
+    },
+
+    chatTitle() {
+      return this.isCarChat ? `Вы подключены к машине с номером ${this.car.car}` : `Пользователь ${this.user.name}`
+    }
+  },
 
   methods: {
     ...mapMutations(["clearData"]),
@@ -25,6 +35,6 @@ export default {
     exit() {
       this.$socket.emit("userLeft");
     }
-  }
+  },
 };
 </script>
